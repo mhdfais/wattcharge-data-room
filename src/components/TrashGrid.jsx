@@ -1,6 +1,61 @@
+import { useState, useEffect, useRef } from "react";
 import { FaTrash } from "react-icons/fa";
+import TrashContextMenu from "./TrashContextMenu";
 
 const TrashGrid = ({files}) => {
+  const [contextMenu, setContextMenu] = useState(null);
+  const justOpenedRef = useRef(false);
+  const containerRef = useRef(null);
+
+  // Close menu on outside click / esc
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const close = () => setContextMenu(null);
+    const handleClick = (e) => {
+      // Ignore the first click after opening (browser behavior)
+      if (justOpenedRef.current) {
+        justOpenedRef.current = false;
+        return;
+      }
+      // Don't close if clicking on the context menu itself
+      if (e.target.closest(".context-menu")) return;
+      close();
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        close();
+      }
+    };
+
+    // Add listeners after a short delay
+    const timeoutId = setTimeout(() => {
+      document.addEventListener("click", handleClick, true);
+    }, 100);
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener("click", handleClick, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  const onRightClick = (e, file) => {
+    e.preventDefault();
+    e.stopPropagation();
+    justOpenedRef.current = true;
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setContextMenu({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        file,
+      });
+    }
+  };
+
    if (!files || files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-3 text-center">
@@ -20,12 +75,13 @@ const TrashGrid = ({files}) => {
 
   // FILE GRID
   return (
-    <div className="px-10 mt-6">
+    <div ref={containerRef} className="px-10 mt-6 relative">
       <div className="flex flex-wrap gap-8">
         {files.map((file, index) => (
           <div
             key={index}
-            className="flex flex-col items-center cursor-pointer hover:opacity-100 transition"
+            onContextMenu={(e) => onRightClick(e, file)}
+            className="flex flex-col items-center cursor-pointer hover:opacity-100 transition select-none"
           >
             {/* File Icon */}
             <div className="">
@@ -53,6 +109,16 @@ const TrashGrid = ({files}) => {
           </div>
         ))}
       </div>
+
+      {/* CONTEXT MENU */}
+      {contextMenu && (
+        <TrashContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          file={contextMenu.file}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
